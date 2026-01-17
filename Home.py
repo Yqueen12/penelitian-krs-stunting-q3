@@ -15,7 +15,7 @@ st.set_page_config(
 def load_dataset():
     """Memuat dan memproses data penelitian KRS"""
     try:
-        data = pd.read_excel("penelitian_bersih_coba2.xlsx")
+        data = pd.read_excel("penelitian_bersih.xlsx")
         
         # Normalisasi kolom
         data.columns = [col.lower().replace(' ', '_') for col in data.columns]
