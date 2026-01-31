@@ -111,7 +111,7 @@ def load_data_from_upload(uploaded_file):
         
         df.columns = df.columns.str.lower()
         
-        required_columns = ['namakelurahan', 'namakecamatan', 'risiko_stunting', 'lat', 'lon']
+        required_columns = ['namakecamatan', 'risiko_stunting', 'lat', 'lon']
         missing_columns = [col for col in required_columns if col not in df.columns]
         
         if missing_columns:
@@ -132,16 +132,16 @@ def load_data_from_upload(uploaded_file):
         return pd.DataFrame()
 
 @st.cache_data
-def calculate_kelurahan_status(df):
-    """Pre-calculate status untuk semua kelurahan dengan caching"""
-    kelurahan_stats = {}
+def calculate_kecamatan_status(df):
+    """Pre-calculate status untuk semua kecamatan dengan caching"""
+    kecamatan_stats = {}
     
-    for kelurahan in df['namakelurahan'].unique():
-        df_kel = df[df['namakelurahan'] == kelurahan]
-        total = len(df_kel)
+    for kecamatan in df['namakecamatan'].unique():
+        df_kec = df[df['namakecamatan'] == kecamatan]
+        total = len(df_kec)
         
         if total == 0:
-            kelurahan_stats[kelurahan] = {
+            kecamatan_stats[kecamatan] = {
                 'status': 'Aman',
                 'persentase': 0.0,
                 'berisiko': 0,
@@ -149,12 +149,12 @@ def calculate_kelurahan_status(df):
                 'total': 0
             }
         else:
-            berisiko = len(df_kel[df_kel['risiko_stunting'] == 'Berisiko'])
-            tidak_berisiko = len(df_kel[df_kel['risiko_stunting'] == 'Tidak Berisiko'])
+            berisiko = len(df_kec[df_kec['risiko_stunting'] == 'Berisiko'])
+            tidak_berisiko = len(df_kec[df_kec['risiko_stunting'] == 'Tidak Berisiko'])
             persentase = (berisiko / total) * 100
             status = 'Rentan Stunting' if persentase > 20 else 'Aman'
             
-            kelurahan_stats[kelurahan] = {
+            kecamatan_stats[kecamatan] = {
                 'status': status,
                 'persentase': persentase,
                 'berisiko': berisiko,
@@ -162,10 +162,10 @@ def calculate_kelurahan_status(df):
                 'total': total
             }
     
-    return kelurahan_stats
+    return kecamatan_stats
 
 @st.cache_data
-def generate_map(df, kelurahan_stats):
+def generate_map(df, kecamatan_stats):
     """Generate map dengan custom marker icons"""
     if df.empty:
         return None
@@ -176,10 +176,9 @@ def generate_map(df, kelurahan_stats):
         return None
 
     # Group data untuk efisiensi
-    map_data = df.groupby('namakelurahan').agg({
+    map_data = df.groupby('namakecamatan').agg({
         'lat': 'mean',
-        'lon': 'mean',
-        'namakecamatan': 'first'
+        'lon': 'mean'
     }).reset_index()
 
     m = folium.Map(
@@ -189,8 +188,8 @@ def generate_map(df, kelurahan_stats):
     )
 
     for _, row in map_data.iterrows():
-        kel_name = row['namakelurahan']
-        stats = kelurahan_stats[kel_name]
+        kec_name = row['namakecamatan']
+        stats = kecamatan_stats[kec_name]
         
         is_aman = stats['status'] == 'Aman'
         status_emoji = "✅" if is_aman else "⚠️"
@@ -198,8 +197,7 @@ def generate_map(df, kelurahan_stats):
 
         popup_html = f"""
         <div style="font-size: 14px; font-family: 'Poppins', sans-serif; min-width: 250px;">
-            <b style="color: #667eea;">📍 Kelurahan:</b> {kel_name}<br>
-            <b style="color: #667eea;">🏘️ Kecamatan:</b> {row['namakecamatan']}<br>
+            <b style="color: #667eea;">📍 Kecamatan:</b> {kec_name}<br>
             <b style="color: {status_color};">{status_emoji} Status:</b> <b>{stats['status']}</b><br>
             <b style="color: #ff6b6b;">📊 Persentase Berisiko:</b> <b>{stats['persentase']:.1f}%</b><br><br>
             <b style="color: #667eea;">📈 Distribusi Data:</b><br>
@@ -271,7 +269,7 @@ def main():
     uploaded_file = st.file_uploader(
         "Pilih file data",
         type=['csv', 'xlsx', 'xls'],
-        help="File harus memiliki kolom: namakelurahan, namakecamatan, risiko_stunting, lat, lon",
+        help="File harus memiliki kolom: namakecamatan, risiko_stunting, lat, lon",
         label_visibility="collapsed"
     )
     
@@ -279,7 +277,6 @@ def main():
     with st.expander("ℹ️ Informasi Format File yang Dibutuhkan"):
         st.markdown("""
         **Kolom Wajib:**
-        - `namakelurahan`: Nama kelurahan
         - `namakecamatan`: Nama kecamatan
         - `risiko_stunting`: Status risiko (Berisiko/Tidak Berisiko atau 1/0)
         - `lat`: Koordinat latitude
@@ -301,7 +298,6 @@ def main():
         
         st.markdown("### 📋 Contoh Struktur Data")
         sample_data = pd.DataFrame({
-            'namakelurahan': ['Kelurahan A', 'Kelurahan A', 'Kelurahan B'],
             'namakecamatan': ['Kecamatan X', 'Kecamatan X', 'Kecamatan Y'],
             'risiko_stunting': ['Berisiko', 'Tidak Berisiko', 'Berisiko'],
             'lat': [-6.5971, -6.5975, -6.6021],
@@ -326,7 +322,7 @@ def main():
 
     # Pre-calculate all statistics
     with st.spinner('Calculating statistics...'):
-        kelurahan_stats = calculate_kelurahan_status(df)
+        kecamatan_stats = calculate_kecamatan_status(df)
 
     # Sidebar Filter
     with st.sidebar:
@@ -337,10 +333,8 @@ def main():
         """, unsafe_allow_html=True)
         
         kec = ['Semua'] + sorted(df['namakecamatan'].unique())
-        kel = ['Semua'] + sorted(df['namakelurahan'].unique())
         
         kecamatan = st.selectbox("📍 Pilih Kecamatan", kec)
-        kelurahan = st.selectbox("🏘️ Pilih Kelurahan", kel)
         
         if 'tahun' in df.columns:
             tahun = ['Semua'] + sorted(df['tahun'].unique(), reverse=True)
@@ -355,13 +349,13 @@ def main():
                 <b>"Suatu wilayah dikatakan memiliki masalah stunting bila kasusnya mencapai angka di atas 20%"</b>
                 </p>
                 <hr style="border-color: rgba(255,255,255,0.3); margin: 10px 0;">
-                <p><b>✅ Kelurahan Aman (Hijau):</b><br>
+                <p><b>✅ Kecamatan Aman (Hijau):</b><br>
                 Persentase Berisiko ≤ 20%</p>
-                <p><b>⚠️ Kelurahan Rentan (Merah):</b><br>
+                <p><b>⚠️ Kecamatan Rentan (Merah):</b><br>
                 Persentase Berisiko > 20%</p>
                 <hr style="border-color: rgba(255,255,255,0.3); margin: 10px 0;">
                 <p style="font-size: 12px; opacity: 0.9;">
-                Klik marker pada peta untuk melihat detail lengkap setiap kelurahan
+                Klik marker pada peta untuk melihat detail lengkap setiap kecamatan
                 </p>
             </div>
         """, unsafe_allow_html=True)
@@ -370,8 +364,6 @@ def main():
     df_filtered = df.copy()
     if kecamatan != 'Semua':
         df_filtered = df_filtered[df_filtered['namakecamatan'] == kecamatan]
-    if kelurahan != 'Semua':
-        df_filtered = df_filtered[df_filtered['namakelurahan'] == kelurahan]
     if tahun_select != 'Semua' and 'tahun' in df.columns:
         df_filtered = df_filtered[df_filtered['tahun'] == tahun_select]
 
@@ -380,8 +372,8 @@ def main():
         return
 
     # Filter stats based on filtered data
-    filtered_kelurahans = df_filtered['namakelurahan'].unique()
-    filtered_stats = {k: v for k, v in kelurahan_stats.items() if k in filtered_kelurahans}
+    filtered_kecamatans = df_filtered['namakecamatan'].unique()
+    filtered_stats = {k: v for k, v in kecamatan_stats.items() if k in filtered_kecamatans}
 
     # Calculate metrics
     jumlah_aman = sum(1 for s in filtered_stats.values() if s['status'] == 'Aman')
@@ -401,8 +393,8 @@ def main():
     with col2:
         st.markdown(f"""
             <div class="metric-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
-                <div class="metric-number">{df_filtered['namakelurahan'].nunique()}</div>
-                <div class="metric-label">🏘️ Total Kelurahan</div>
+                <div class="metric-number">{df_filtered['namakecamatan'].nunique()}</div>
+                <div class="metric-label">📍 Total Kecamatan</div>
             </div>
         """, unsafe_allow_html=True)
     
@@ -410,7 +402,7 @@ def main():
         st.markdown(f"""
             <div class="metric-card" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
                 <div class="metric-number">{jumlah_aman}</div>
-                <div class="metric-label">✅ Kelurahan Aman</div>
+                <div class="metric-label">✅ Kecamatan Aman</div>
             </div>
         """, unsafe_allow_html=True)
     
@@ -418,7 +410,7 @@ def main():
         st.markdown(f"""
             <div class="metric-card" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);">
                 <div class="metric-number">{jumlah_rentan}</div>
-                <div class="metric-label">⚠️ Kelurahan Rentan</div>
+                <div class="metric-label">⚠️ Kecamatan Rentan</div>
             </div>
         """, unsafe_allow_html=True)
 
@@ -431,11 +423,11 @@ def main():
             <div style="display: flex; justify-content: space-around; flex-wrap: wrap;">
                 <div style="display: flex; align-items: center; margin: 5px;">
                     <div style="width: 20px; height: 20px; background-color: #51cf66; border-radius: 50%; margin-right: 10px;"></div>
-                    <span><b>Kelurahan Aman</b> (≤20% Berisiko)</span>
+                    <span><b>Kecamatan Aman</b> (≤20% Berisiko)</span>
                 </div>
                 <div style="display: flex; align-items: center; margin: 5px;">
                     <div style="width: 20px; height: 20px; background-color: #ff6b6b; border-radius: 50%; margin-right: 10px;"></div>
-                    <span><b>Kelurahan Rentan Stunting</b> (>20% Berisiko)</span>
+                    <span><b>Kecamatan Rentan Stunting</b> (>20% Berisiko)</span>
                 </div>
             </div>
         </div>
@@ -458,7 +450,7 @@ def main():
                 <i>"Suatu wilayah dikatakan memiliki masalah stunting bila kasusnya mencapai angka di atas 20%"</i>
             </p>
             <p style="font-size: 12px; margin-top: 5px;">
-                Kelurahan dengan >20% kasus berisiko = <span style="color: #ff6b6b; font-weight: 600;">Rentan Stunting</span> | 
+                Kecamatan dengan >20% kasus berisiko = <span style="color: #ff6b6b; font-weight: 600;">Rentan Stunting</span> | 
                 ≤20% = <span style="color: #51cf66; font-weight: 600;">Aman</span>
             </p>
         </div>
