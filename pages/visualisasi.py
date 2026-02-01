@@ -131,9 +131,8 @@ def load_data_from_upload(uploaded_file):
         st.error(f"❌ Error saat membaca file: {str(e)}")
         return pd.DataFrame()
 
-@st.cache_data
 def calculate_kecamatan_status(df):
-    """Pre-calculate status untuk semua kecamatan dengan caching"""
+    """Calculate status untuk kecamatan berdasarkan dataframe yang diberikan (TIDAK LAGI CACHED)"""
     kecamatan_stats = {}
     
     for kecamatan in df['namakecamatan'].unique():
@@ -164,9 +163,8 @@ def calculate_kecamatan_status(df):
     
     return kecamatan_stats
 
-@st.cache_data
 def generate_map(df, kecamatan_stats):
-    """Generate map dengan custom marker icons"""
+    """Generate map dengan custom marker icons (TIDAK LAGI CACHED)"""
     if df.empty:
         return None
         
@@ -320,10 +318,6 @@ def main():
     with st.expander("👁️ Preview Data yang Diupload"):
         st.dataframe(df.head(10), use_container_width=True)
 
-    # Pre-calculate all statistics
-    with st.spinner('Calculating statistics...'):
-        kecamatan_stats = calculate_kecamatan_status(df)
-
     # Sidebar Filter
     with st.sidebar:
         st.markdown("""
@@ -371,13 +365,13 @@ def main():
         st.warning("❗ Tidak ada data untuk filter yang dipilih.")
         return
 
-    # Filter stats based on filtered data
-    filtered_kecamatans = df_filtered['namakecamatan'].unique()
-    filtered_stats = {k: v for k, v in kecamatan_stats.items() if k in filtered_kecamatans}
+    # PERBAIKAN UTAMA: Hitung statistik berdasarkan data yang SUDAH DIFILTER
+    with st.spinner('Calculating statistics...'):
+        kecamatan_stats = calculate_kecamatan_status(df_filtered)
 
     # Calculate metrics
-    jumlah_aman = sum(1 for s in filtered_stats.values() if s['status'] == 'Aman')
-    jumlah_rentan = sum(1 for s in filtered_stats.values() if s['status'] == 'Rentan Stunting')
+    jumlah_aman = sum(1 for s in kecamatan_stats.values() if s['status'] == 'Aman')
+    jumlah_rentan = sum(1 for s in kecamatan_stats.values() if s['status'] == 'Rentan Stunting')
 
     # Metrics Cards
     col1, col2, col3, col4 = st.columns(4)
@@ -434,7 +428,7 @@ def main():
     """, unsafe_allow_html=True)
     
     with st.spinner('Generating map...'):
-        map_obj = generate_map(df_filtered, filtered_stats)
+        map_obj = generate_map(df_filtered, kecamatan_stats)
         if map_obj:
             st_folium(map_obj, height=600, width=None, returned_objects=[])
         else:
